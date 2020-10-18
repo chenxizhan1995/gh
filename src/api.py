@@ -16,6 +16,7 @@ Created on 2020年10月18日
 import os
 import configparser
 import requests
+from pickle import NONE
 
 _config_file = 'gh.conf'
 _config_file_path = os.path.abspath(os.path.expanduser(
@@ -24,25 +25,56 @@ _config_file_path = os.path.abspath(os.path.expanduser(
 def load_config(file):
     config = configparser.ConfigParser()
     config.read(file, encoding='UTF-8')
-    print('打开文件')
     return config
 
 def _get_token():
+    
+    if (token := os.getenv('GH_TOKEN', None)) != None:
+        return token
     config = load_config(_config_file_path)
     main = config['main']
     return main['token']
 
 class BaseCmd:
     base_url = 'https://api.github.com'
-    version_header = {'Accept': 'application/vnd.github.v3+json'}
-    auth_header = {'Authorization': 'token ' + _get_token()}
-    def __init__(self, name, user_name, token):
-        self.name = name
-        self.user_name = user_name
-        self.token = token
+    __version_header = {'Accept': 'application/vnd.github.v3+json'}
     
+    def __init__(self, user_name):
+        self.user_name = user_name
+        self.__token = None
+        self.__no_token = False
+        
     def __call__(self):
-        raise NotImplemented
+        raise NotImplementedError()
+    
+    @property
+    def token(self):
+        if self.__token is None and not self.__no_token:
+            token = _get_token()
+            if token is None: self.__no_token = True
+            else: self.__token = token
+            
+        return self.__token
+
+    @property
+    def headers(self):
+        auth_header = {}
+        if self.token is not None:
+            auth_header =   {'Authorization': 'token ' + self.token }
+
+        return { ** self.__version_header, **auth_header }
+    @property
+    def is_authorized(self):
+        ''' 是否有口令
+        '''
+        return self.token is not None
+    
+    @property
+    def name(self):
+        ''' 子命令名称
+        '''
+        raise NotImplementedError()
+
 
 class CreateRepo(BaseCmd):
     '''
@@ -54,8 +86,8 @@ class CreateRepo(BaseCmd):
     - repo scope to create a private repository
     '''
     
-    def __init__(self, name, user_name = None, token = None):
-        super().__init__(name, user_name, token)
+    def __init__(self, user_name = None, token = None):
+        super().__init__(user_name)
     
     
     def __call__(self, args):
@@ -65,7 +97,7 @@ class CreateRepo(BaseCmd):
             'name':args.repo
         }
         
-        headers = {**self.version_header, **self.auth_header}
+        headers = super().headers
         
         res = requests.post(self.base_url + pth, headers = headers, json = data)
 
@@ -75,22 +107,27 @@ class CreateRepo(BaseCmd):
             print('创建失败,', res.reason)
             print(res.headers['status'])
         
-
+    @property
+    def name(self):
+        ''' 子命令名称
+        '''
+        return 'create'
+    
 class DeleteRepo(BaseCmd):
     '''
     删除仓库的api
     [仓库 - GitHub Docs](https://docs.github.com/cn/free-pro-team@latest/rest/reference/repos#delete-a-repository)
     '''
     
-    def __init__(self, name, user_name = None, token = None):
-        super().__init__(name, user_name, token)
+    def __init__(self, user_name = None, token = None):
+        super().__init__(user_name)
     
     
     def __call__(self, args):
         print('删除仓库')
         pth = '/repos/chenxizhan1995/' + args.repo
 
-        headers = {**self.version_header, **self.auth_header}
+        headers = super().headers
         
         res = requests.delete(self.base_url + pth, headers = headers)
 
@@ -102,23 +139,31 @@ class DeleteRepo(BaseCmd):
             print('仓库不存在')
         else:
             print('删除失败:' + res.reason)
+    
+    @property
+    def name(self):
+        ''' 子命令名称
+        '''
+        return 'delete'
+    
 
 class ListRepo(BaseCmd):
     '''
     get /user/repos
     Status: 200 OK
     '''
-    def __init__(self, name, user_name = None, token = None):
-        super().__init__(name, user_name, token)
+    def __init__(self,user_name = None, token = None):
+        super().__init__(user_name)
     
     def __call__(self, args):
         print('列举仓库')
         pth = '/user/repos'
 
-        headers = {**self.version_header, **self.auth_header}
+        headers = super().headers
         params = {
             'per_page':'100'
         }
+        print(headers)
         res = requests.get(self.base_url + pth, headers = headers, params = params)
         if res.status_code == 200: #
             repos = res.json()
@@ -132,7 +177,12 @@ class ListRepo(BaseCmd):
         else:
             print('失败:' + res.reason)
 
-
+    @property
+    def name(self):
+        ''' 子命令名称
+        '''
+        return 'list'
+    
 class ShowRepo(BaseCmd):
     '''
     
@@ -143,18 +193,24 @@ class ShowRepo(BaseCmd):
     
     '''
     
-    def __init__(self, name, user_name = None, token = None):
-        super().__init__(name, user_name, token)
+    def __init__(self, user_name = None, token = None):
+        super().__init__( user_name)
     
     def __call__(self, args):
         import json
         pth = '/repos/' + args.repo
-
-        headers = {**self.version_header, **self.auth_header}
+        
+        headers = super().headers
 
         res = requests.get(self.base_url + pth, headers = headers)
         print(json.dumps(res.json(), indent=4))
-
+        
+    @property
+    def name(self):
+        ''' 子命令名称
+        '''
+        return 'show'
+    
 _list = ListRepo('list')
 _create_repo_cmd = CreateRepo('create')
 _show_repo_cmd = ShowRepo('show')

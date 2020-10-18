@@ -80,7 +80,6 @@ USAGE
         common_args.add_argument('--token', help='OAth 令牌')
         common_args.add_argument('--repo', help='仓库名称')
         
-        
         for cmd in api.__all__:
             tmp = sub.add_parser(cmd.name, parents=[common_args])
             tmp.set_defaults(func=cmd)
