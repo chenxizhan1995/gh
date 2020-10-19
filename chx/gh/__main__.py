@@ -22,8 +22,7 @@ import sys
 import os
 
 from argparse import ArgumentParser
-import api
-from sqlalchemy.sql.operators import comma_op
+from . import api
 
 __all__ = []
 __version__ = 0.1
@@ -86,15 +85,14 @@ USAGE
     
         # Process arguments
         args = parser.parse_args()
- 
-        args.func(args)
+        if args.func:
+            args.func(args)
         
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
         return 0
     except Exception as e:
-        print('异常')
         if DEBUG or TESTRUN:
             raise(e)
         indent = len(program_name) * " "

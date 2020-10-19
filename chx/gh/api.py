@@ -163,7 +163,6 @@ class ListRepo(BaseCmd):
         params = {
             'per_page':'100'
         }
-        print(headers)
         res = requests.get(self.base_url + pth, headers = headers, params = params)
         if res.status_code == 200: #
             repos = res.json()
